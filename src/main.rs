@@ -1,13 +1,15 @@
 extern crate piston_window;
 
 use piston_window::*;
+use rand;
 
-const GRAVITY: f64 = 9.8;
+const GRAVITY: f64 = 0.0;
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 600;
 const CELL_SIZE: i32 = 10;
 const SPEED_FACTOR: f64 = 5.0;
+const AIR_RESISTANCE: f64 = 0.5;
 
 #[derive(Clone)]
 struct Cell {
@@ -131,19 +133,50 @@ struct Circle {
 
 impl Circle {
     fn update(&mut self, dt: f64) {
-        if self.touching_ground() {
-            self.pinfo.acc.y = 0.0;
-            self.pinfo.vel.y = 0.0;
-        } else {
-            self.pinfo.acc.y = GRAVITY;
-            self.pinfo.vel.y += self.pinfo.acc.y * dt;
+        fn opposite_sign(a: f64) -> f64 {
+            if a > 0.0 {
+                -1.0
+            } else {
+                1.0
+            }
         }
+
+        if self.pinfo.pos.x + self.radius >= WIDTH as f64 {
+            self.pinfo.vel.x = -self.pinfo.vel.x;
+            self.pinfo.acc.x = -self.pinfo.acc.x;
+        }
+        if self.pinfo.pos.x - self.radius <= 0.0 {
+            self.pinfo.vel.x = -self.pinfo.vel.x;
+            self.pinfo.acc.x = -self.pinfo.acc.x;
+        }
+        if self.pinfo.pos.y + self.radius >= HEIGHT as f64 {
+            self.pinfo.vel.y = -self.pinfo.vel.y;
+            self.pinfo.acc.y = -self.pinfo.acc.y;
+        }
+        if self.pinfo.pos.y - self.radius <= 0.0 {
+            self.pinfo.vel.y = -self.pinfo.vel.y;
+            self.pinfo.acc.y = -self.pinfo.acc.y;
+        }
+
+        if GRAVITY > 0.0 {
+            if self.touching_ground() {
+                self.pinfo.acc.y = 0.0;
+                self.pinfo.vel.y = 0.0;
+            } else {
+                self.pinfo.acc.y = GRAVITY;
+            }
+        }
+
+        self.pinfo.vel.y += self.pinfo.acc.y + opposite_sign(self.pinfo.acc.y) * AIR_RESISTANCE * self.pinfo.vel.y * self.pinfo.vel.y * dt;
+        self.pinfo.vel.x += self.pinfo.acc.x + opposite_sign(self.pinfo.acc.x) * AIR_RESISTANCE * self.pinfo.vel.x * self.pinfo.vel.x * dt;
+
         self.pinfo.pos.y += self.pinfo.vel.y * dt;
+        self.pinfo.pos.x += self.pinfo.vel.x * dt;
     }
 
     fn find_grid_pos(&self, cell_size: i32) -> (i32, i32) {
-        let x = (self.pinfo.pos.x / cell_size as f64).floor() as i32;
-        let y = (self.pinfo.pos.y / cell_size as f64).floor() as i32;
+        let x = (f64::max(f64::min(self.pinfo.pos.x, (WIDTH - 1) as f64), 0.0) / cell_size as f64).floor() as i32;
+        let y = (f64::max(f64::min(self.pinfo.pos.y, (HEIGHT - 1) as f64), 0.0) / cell_size as f64).floor() as i32;
         (x, y)
     }
 
@@ -167,17 +200,20 @@ fn main() {
 
     let mut grid = Grid::new(WIDTH, HEIGHT, CELL_SIZE);
     let mut circles: Vec<Circle> = Vec::new();
-    circles.push(Circle {
-        radius: 10.0,
-        pinfo: PhysicsInfo {
-            pos: Double {
-                x: WIDTH as f64 / 2.0,
-                y: HEIGHT as f64 / 2.0,
+
+    for _ in 0..40 {
+        circles.push(Circle {
+            radius: 10.0,
+            pinfo: PhysicsInfo {
+                pos: Double {
+                    x: WIDTH as f64 * rand::random::<f64>(),
+                    y: HEIGHT as f64 * rand::random::<f64>(),
+                },
+                vel: Double { x: 0.0, y: 0.0 },
+                acc: Double { x: rand::random::<f64>() * 5.0, y: rand::random::<f64>() * 5.0 },
             },
-            vel: Double { x: 0.0, y: 0.0 },
-            acc: Double { x: 0.0, y: 0.0 },
-        },
-    });
+        });
+    }
 
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _| {
