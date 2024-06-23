@@ -4,13 +4,15 @@ use piston_window::*;
 use rand;
 
 const GRAVITY: f64 = 9.8;
-
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 600;
-const CELL_SIZE: i32 = 10;
+const CELL_SIZE: i32 = 50;
 const SPEED_FACTOR: f64 = 3.0;
 const AIR_RESISTANCE: f64 = 0.05;
 const COLLIDE_LOSS: f64 = 0.4;
+const SPRING_CONST: f64 = 0.5;
+
+const CIRCLE_NUMBER: usize = 50;
 
 #[derive(Clone)]
 struct Cell {
@@ -18,8 +20,6 @@ struct Cell {
 }
 
 struct Grid {
-    width: i32,
-    height: i32,
     cell_size: i32,
     cells: Vec<Vec<Cell>>,
     num_cells_x: i32,
@@ -32,17 +32,13 @@ impl Grid {
         let num_cells_y = (height as f64 / cell_size as f64).ceil() as i32;
         let cells = vec![vec![Cell { objects: Vec::new() }; num_cells_y as usize]; num_cells_x as usize];
         Grid {
-            width,
-            height,
             cell_size,
             cells,
             num_cells_x,
             num_cells_y,
         }
     }
-    fn get_cell_here(&self, x: i32, y: i32) -> &Cell {
-        &self.cells[(x as f64 / CELL_SIZE as f64).floor() as usize][(y as f64 / CELL_SIZE as f64).floor() as usize]
-    }
+
     fn reset(&mut self) {
         for x in 0..self.num_cells_x {
             for y in 0..self.num_cells_y {
@@ -50,10 +46,12 @@ impl Grid {
             }
         }
     }
+
     fn add_obj(&mut self, obj: Circle, obj_id: i64) {
         let (x, y) = obj.find_grid_pos(self.cell_size);
         self.cells[x as usize][y as usize].objects.push(obj_id);
     }
+
     fn check_collisions(&mut self, circles: &mut Vec<Circle>) {
         fn fix_collision(circles: &mut Vec<Circle>, i1: usize, i2: usize) {
             let dx = circles[i1].pinfo.pos.x - circles[i2].pinfo.pos.x;
@@ -129,13 +127,38 @@ struct PhysicsInfo {
     pos: Double,
     vel: Double,
     acc: Double,
-    mas: f64,
 }
 
 #[derive(Clone, Copy)]
 struct Double {
     x: f64,
     y: f64,
+}
+
+impl Double {
+    fn magnitude(&self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+}
+
+impl std::ops::Sub for Double {
+    type Output = Double;
+    fn sub(self, other: Double) -> Double {
+        Double {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+}
+
+impl std::ops::Mul<f64> for Double {
+    type Output = Double;
+    fn mul(self, other: f64) -> Double {
+        Double {
+            x: self.x * other,
+            y: self.y * other,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -211,6 +234,37 @@ impl Circle {
     }
 }
 
+struct Link {
+    c1: usize,
+    c2: usize,
+    rest_length: f64,
+}
+
+fn apply_spring_force(circles: &mut Vec<Circle>, c1: usize, c2: usize, rest_length: f64) {
+        let c1_pos = circles[c1].pinfo.pos;
+        let c2_pos = circles[c2].pinfo.pos;
+        let displacement = c2_pos - c1_pos;
+        let distance = displacement.magnitude();
+        let direction = Double {
+            x: displacement.x / distance,
+            y: displacement.y / distance,
+        };
+        let spring_force = (distance - rest_length) * SPRING_CONST;
+        let damping_force = (circles[c2].pinfo.vel - circles[c1].pinfo.vel) * SPRING_CONST * 0.1;
+        let force = direction * spring_force;
+
+    {
+        let c1 = &mut circles[c1];
+        c1.pinfo.acc.x += force.x - damping_force.x;
+        c1.pinfo.acc.y += force.y - damping_force.y;
+    }
+    {
+        let c2 = &mut circles[c2];
+        c2.pinfo.acc.x -= force.x - damping_force.x;
+        c2.pinfo.acc.y -= force.y - damping_force.y;
+    }
+}
+
 fn main() {
     let mut window: PistonWindow = WindowSettings::new("Rusty Physics", [WIDTH as u32, HEIGHT as u32])
         .exit_on_esc(true)
@@ -219,8 +273,9 @@ fn main() {
 
     let mut grid = Grid::new(WIDTH, HEIGHT, CELL_SIZE);
     let mut circles: Vec<Circle> = Vec::new();
+    let mut links: Vec<Link> = Vec::new();
 
-    for _ in 0..30 {
+    for _ in 0..CIRCLE_NUMBER {
         circles.push(Circle {
             radius: 10.0,
             pinfo: PhysicsInfo {
@@ -230,10 +285,15 @@ fn main() {
                 },
                 vel: Double { x: 0.0, y: 0.0 },
                 acc: Double { x: rand::random::<f64>() * 5.0, y: rand::random::<f64>() * 5.0 },
-                mas: 1.0,
             },
         });
     }
+
+    links.push(Link {
+        c1: 0,
+        c2: 1,
+        rest_length: 50.0,
+    });
 
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _| {
@@ -259,6 +319,22 @@ fn main() {
                 i += 1;
             }
             grid.check_collisions(&mut circles);
+
+            for link in &links {
+                apply_spring_force(&mut circles, link.c1, link.c2, link.rest_length);
+                line(
+                    [0.0, 0.0, 0.0, 1.0],
+                    1.0,
+                    [
+                        circles[link.c1].pinfo.pos.x,
+                        circles[link.c1].pinfo.pos.y,
+                        circles[link.c2].pinfo.pos.x,
+                        circles[link.c2].pinfo.pos.y,
+                    ],
+                    context.transform,
+                    graphics,
+                );
+            }
         });
     }
 }
