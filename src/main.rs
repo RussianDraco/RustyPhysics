@@ -3,6 +3,8 @@ extern crate piston_window;
 use piston_window::*;
 use rand;
 
+use std::f64::consts::PI;
+
 const GRAVITY: f64 = 9.8;
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 600;
@@ -10,9 +12,11 @@ const CELL_SIZE: i32 = 50;
 const SPEED_FACTOR: f64 = 3.0;
 const AIR_RESISTANCE: f64 = 0.05;
 const COLLIDE_LOSS: f64 = 0.4;
-const SPRING_CONST: f64 = 0.5;
+const SPRING_CONST: f64 = 0.1;
+const DAMP_CONST: f64 = 0.05;
+const DEFAULT_RADIUS: f64 = 10.0;
 
-const CIRCLE_NUMBER: usize = 50;
+const CIRCLE_NUMBER: usize = 0;
 
 #[derive(Clone)]
 struct Cell {
@@ -59,27 +63,39 @@ impl Grid {
             let distance = (dx * dx + dy * dy).sqrt();
             let overlap = circles[i1].radius + circles[i2].radius - distance;
             let ratio = overlap / distance;
+            let brownian: bool = circles[i1].pinfo.pos.dist(circles[i2].pinfo.pos) < 1.0;
+
             {
                 let obj1 = &mut circles[i1];
-                obj1.pinfo.pos.x += dx * ratio / 2.0;
-                obj1.pinfo.pos.y += dy * ratio / 2.0;
-                let normal = Double { x: dx / distance, y: dy / distance };
-                let dp_normal = obj1.pinfo.vel.x * normal.x + obj1.pinfo.vel.y * normal.y;
-                obj1.pinfo.vel.x = dp_normal * normal.x;
-                obj1.pinfo.vel.y = dp_normal * normal.y;
-                obj1.pinfo.acc.x = 0.0;
-                obj1.pinfo.acc.y = 0.0;
+                if brownian {
+                    obj1.pinfo.pos.x += rand::random::<f64>() * 2.0 - 1.0;
+                    obj1.pinfo.pos.y += rand::random::<f64>() * 2.0 - 1.0;
+                } else {
+                    obj1.pinfo.pos.x += dx * ratio / 2.0;
+                    obj1.pinfo.pos.y += dy * ratio / 2.0;
+                    let normal = Double { x: dx / distance, y: dy / distance };
+                    let dp_normal = obj1.pinfo.vel.x * normal.x + obj1.pinfo.vel.y * normal.y;
+                    obj1.pinfo.vel.x = dp_normal * normal.x;
+                    obj1.pinfo.vel.y = dp_normal * normal.y;
+                    obj1.pinfo.acc.x = 0.0;
+                    obj1.pinfo.acc.y = 0.0;
+                }
             }
             {
                 let obj2 = &mut circles[i2];
-                obj2.pinfo.pos.x -= dx * ratio / 2.0;
-                obj2.pinfo.pos.y -= dy * ratio / 2.0;
-                let normal = Double { x: -dx / distance, y: -dy / distance };
-                let dp_normal = obj2.pinfo.vel.x * normal.x + obj2.pinfo.vel.y * normal.y;
-                obj2.pinfo.vel.x = -dp_normal * normal.x;
-                obj2.pinfo.vel.y = -dp_normal * normal.y;
-                obj2.pinfo.acc.x = 0.0;
-                obj2.pinfo.acc.y = 0.0;
+                if brownian {
+                    obj2.pinfo.pos.x += rand::random::<f64>() * 2.0 - 1.0;
+                    obj2.pinfo.pos.y += rand::random::<f64>() * 2.0 - 1.0;
+                } else {
+                    obj2.pinfo.pos.x -= dx * ratio / 2.0;
+                    obj2.pinfo.pos.y -= dy * ratio / 2.0;
+                    let normal = Double { x: -dx / distance, y: -dy / distance };
+                    let dp_normal = obj2.pinfo.vel.x * normal.x + obj2.pinfo.vel.y * normal.y;
+                    obj2.pinfo.vel.x = -dp_normal * normal.x;
+                    obj2.pinfo.vel.y = -dp_normal * normal.y;
+                    obj2.pinfo.acc.x = 0.0;
+                    obj2.pinfo.acc.y = 0.0;
+                }
             }
         }
 
@@ -138,6 +154,11 @@ struct Double {
 impl Double {
     fn magnitude(&self) -> f64 {
         (self.x * self.x + self.y * self.y).sqrt()
+    }
+    fn dist(&self, other: Double) -> f64 {
+        let dx = self.x - other.x;
+        let dy = self.y - other.y;
+        (dx * dx + dy * dy).sqrt()
     }
 }
 
@@ -240,6 +261,37 @@ struct Link {
     rest_length: f64,
 }
 
+fn create_softbody(circles: &mut Vec<Circle>, links: &mut Vec<Link>, num_of_circles: usize, radius: f64, sub_radius: f64, pos: Double) {
+    let circum = 2.0 * PI * radius;
+    let rest_len = circum / num_of_circles as f64;
+    let circles_len = circles.len();
+    for i in 0..num_of_circles {
+        circles.push(Circle {
+            radius: sub_radius,
+            pinfo: PhysicsInfo {
+                pos: Double {
+                    x: radius * (i as f64 * 2.0 * PI / num_of_circles as f64).cos() + pos.x,
+                    y: radius * (i as f64 * 2.0 * PI / num_of_circles as f64).sin() + pos.y,
+                },
+                vel: Double { x: 0.0, y: 0.0 },
+                acc: Double { x: 0.0, y: 0.0 },
+            },
+        });
+        if i > 0 {
+            links.push(Link {
+                c1: i + circles_len - 1,
+                c2: i + circles_len,
+                rest_length: rest_len,
+            });
+        }
+    }
+    links.push(Link {
+        c1: circles_len,
+        c2: circles_len + num_of_circles - 1,
+        rest_length: rest_len,
+    });
+}
+
 fn apply_spring_force(circles: &mut Vec<Circle>, c1: usize, c2: usize, rest_length: f64) {
         let c1_pos = circles[c1].pinfo.pos;
         let c2_pos = circles[c2].pinfo.pos;
@@ -250,7 +302,7 @@ fn apply_spring_force(circles: &mut Vec<Circle>, c1: usize, c2: usize, rest_leng
             y: displacement.y / distance,
         };
         let spring_force = (distance - rest_length) * SPRING_CONST;
-        let damping_force = (circles[c2].pinfo.vel - circles[c1].pinfo.vel) * SPRING_CONST * 0.1;
+        let damping_force = (circles[c2].pinfo.vel - circles[c1].pinfo.vel) * DAMP_CONST * 0.1;
         let force = direction * spring_force;
 
     {
@@ -277,7 +329,7 @@ fn main() {
 
     for _ in 0..CIRCLE_NUMBER {
         circles.push(Circle {
-            radius: 10.0,
+            radius: DEFAULT_RADIUS,
             pinfo: PhysicsInfo {
                 pos: Double {
                     x: WIDTH as f64 * rand::random::<f64>(),
@@ -289,11 +341,7 @@ fn main() {
         });
     }
 
-    links.push(Link {
-        c1: 0,
-        c2: 1,
-        rest_length: 50.0,
-    });
+    create_softbody(&mut circles, &mut links, 50, 40.0, 3.0, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0 });
 
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _| {
