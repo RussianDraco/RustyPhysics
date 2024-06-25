@@ -15,6 +15,8 @@ const COLLIDE_LOSS: f64 = 0.4;
 const SPRING_CONST: f64 = 0.1;
 const DAMP_CONST: f64 = 0.05;
 const DEFAULT_RADIUS: f64 = 10.0;
+const RADIUS_MIN: f64 = 10.0;
+const RADIUS_MAX: f64 = 20.0;
 const DEFAULT_COLOR: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 
 const CIRCLE_NUMBER: usize = 30;
@@ -68,38 +70,34 @@ impl Grid {
 
             {
                 let obj1 = &mut circles[i1];
-                if !obj1.pinfo.is_locked {
-                    if brownian {
-                        obj1.pinfo.pos.x += rand::random::<f64>() * 2.0 - 1.0;
-                        obj1.pinfo.pos.y += rand::random::<f64>() * 2.0 - 1.0;
-                    } else {
-                        obj1.pinfo.pos.x += dx * ratio / 2.0;
-                        obj1.pinfo.pos.y += dy * ratio / 2.0;
-                        let normal = Double { x: dx / distance, y: dy / distance };
-                        let dp_normal = obj1.pinfo.vel.x * normal.x + obj1.pinfo.vel.y * normal.y;
-                        obj1.pinfo.vel.x = dp_normal * normal.x;
-                        obj1.pinfo.vel.y = dp_normal * normal.y;
-                        obj1.pinfo.acc.x = 0.0;
-                        obj1.pinfo.acc.y = 0.0;
-                    }
+                if brownian {
+                    obj1.pinfo.pos.x += rand::random::<f64>() * 2.0 - 1.0;
+                    obj1.pinfo.pos.y += rand::random::<f64>() * 2.0 - 1.0;
+                } else {
+                    obj1.pinfo.pos.x += dx * ratio / 2.0;
+                    obj1.pinfo.pos.y += dy * ratio / 2.0;
+                    let normal = Double { x: dx / distance, y: dy / distance };
+                    let dp_normal = obj1.pinfo.vel.x * normal.x + obj1.pinfo.vel.y * normal.y;
+                    obj1.pinfo.vel.x = dp_normal * normal.x;
+                    obj1.pinfo.vel.y = dp_normal * normal.y;
+                    obj1.pinfo.acc.x = 0.0;
+                    obj1.pinfo.acc.y = 0.0;
                 }
             }
             {
                 let obj2 = &mut circles[i2];
-                if !obj2.pinfo.is_locked {
-                    if brownian {
-                        obj2.pinfo.pos.x += rand::random::<f64>() * 2.0 - 1.0;
-                        obj2.pinfo.pos.y += rand::random::<f64>() * 2.0 - 1.0;
-                    } else {
-                        obj2.pinfo.pos.x -= dx * ratio / 2.0;
-                        obj2.pinfo.pos.y -= dy * ratio / 2.0;
-                        let normal = Double { x: -dx / distance, y: -dy / distance };
-                        let dp_normal = obj2.pinfo.vel.x * normal.x + obj2.pinfo.vel.y * normal.y;
-                        obj2.pinfo.vel.x = -dp_normal * normal.x;
-                        obj2.pinfo.vel.y = -dp_normal * normal.y;
-                        obj2.pinfo.acc.x = 0.0;
-                        obj2.pinfo.acc.y = 0.0;
-                    }
+                if brownian {
+                    obj2.pinfo.pos.x += rand::random::<f64>() * 2.0 - 1.0;
+                    obj2.pinfo.pos.y += rand::random::<f64>() * 2.0 - 1.0;
+                } else {
+                    obj2.pinfo.pos.x -= dx * ratio / 2.0;
+                    obj2.pinfo.pos.y -= dy * ratio / 2.0;
+                    let normal = Double { x: -dx / distance, y: -dy / distance };
+                    let dp_normal = obj2.pinfo.vel.x * normal.x + obj2.pinfo.vel.y * normal.y;
+                    obj2.pinfo.vel.x = -dp_normal * normal.x;
+                    obj2.pinfo.vel.y = -dp_normal * normal.y;
+                    obj2.pinfo.acc.x = 0.0;
+                    obj2.pinfo.acc.y = 0.0;
                 }
             }
         }
@@ -148,8 +146,6 @@ struct PhysicsInfo {
     pos: Double,
     vel: Double,
     acc: Double,
-    is_locked: bool,
-    lock_point: Double,
 }
 
 #[derive(Clone, Copy)]
@@ -193,10 +189,22 @@ impl std::ops::Mul<f64> for Double {
 struct Circle {
     radius: f64,
     pinfo: PhysicsInfo,
+    color: [f32; 4],
+    is_dragged: bool,
 }
 
 impl Circle {
-    fn update(&mut self, dt: f64) {
+    fn update(&mut self, dt: f64, mouse_pos: Double) {
+        if self.is_dragged {
+            self.pinfo.vel.x = (mouse_pos.x - self.pinfo.pos.x) / dt;
+            self.pinfo.vel.y = (mouse_pos.y - self.pinfo.pos.y) / dt;
+
+            self.pinfo.pos.y += self.pinfo.vel.y * dt;
+            self.pinfo.pos.x += self.pinfo.vel.x * dt;
+
+            return;
+        }
+
         fn opposite_sign(x: f64) -> f64 {
             if x > 0.0 {
                 -1.0
@@ -242,10 +250,6 @@ impl Circle {
 
         self.pinfo.pos.x = f64::max(f64::min(self.pinfo.pos.x, (WIDTH as f64 - 1.0 - self.radius) as f64), self.radius);
         self.pinfo.pos.y = f64::max(f64::min(self.pinfo.pos.y, (HEIGHT as f64 - 1.0 - self.radius) as f64), self.radius);
-
-        if self.pinfo.is_locked {
-
-        }
     }
 
     fn find_grid_pos(&self, cell_size: i32) -> (i32, i32) {
@@ -278,35 +282,34 @@ struct StaticLink {
     rest_length: f64,
 }
 
-fn create_rope(circles: &mut Vec<Circle>, staticlinks: &mut Vec<StaticLink>, anchor_pos: Double, rope_length: f64, segment_num: i64, attachment: i64) {
+fn create_rope(circles: &mut Vec<Circle>, staticlinks: &mut Vec<StaticLink>, anchor_pos: Double, rope_length: f64, segment_num: i64, attachments: bool) {
     let segmental_node_radius = 1.0;
-    let mut prev = anchor_pos;
-    let mut first: bool = true;
-    for i in 0..segment_num {
+    for i in 0..segment_num+2 {
         let pos = Double {
             x: anchor_pos.x + (i as f64 * rope_length / segment_num as f64) * 0.0,
             y: anchor_pos.y + (i as f64 * rope_length / segment_num as f64) * 1.0,
         };
-        if first {
-            first = false;
+        if i==0||i==segment_num+1 {
             circles.push(Circle {
-                radius: segmental_node_radius,
+                radius: DEFAULT_RADIUS,
                 pinfo: PhysicsInfo {
-                    pos: pos,
+                    pos,
                     vel: Double { x: 0.0, y: 0.0 },
                     acc: Double { x: 0.0, y: 0.0 },
-                    is_locked: true,
                 },
+                color: DEFAULT_COLOR,
+                is_dragged: false,
             });
         } else {
             circles.push(Circle {
                 radius: segmental_node_radius,
                 pinfo: PhysicsInfo {
-                    pos: pos,
+                    pos,
                     vel: Double { x: 0.0, y: 0.0 },
                     acc: Double { x: 0.0, y: 0.0 },
-                    is_locked: false,
                 },
+                color: [0.0, 0.0, 0.0, 0.0],
+                is_dragged: false,
             });
         }
         if i > 0 {
@@ -316,7 +319,6 @@ fn create_rope(circles: &mut Vec<Circle>, staticlinks: &mut Vec<StaticLink>, anc
                 rest_length: rope_length / segment_num as f64,
             });
         }
-        prev = pos;
     }
 }
 
@@ -334,9 +336,9 @@ fn create_softbody(circles: &mut Vec<Circle>, links: &mut Vec<StaticLink>, num_o
                 },
                 vel: Double { x: 0.0, y: 0.0 },
                 acc: Double { x: 0.0, y: 0.0 },
-                is_locked: false,
-                lock_point: Double { x: 0.0, y: 0.0 },
             },
+            color: DEFAULT_COLOR,
+            is_dragged: false,
         });
         if i > 0 {
             links.push(StaticLink {
@@ -368,17 +370,13 @@ fn apply_spring_force(circles: &mut Vec<Circle>, c1: usize, c2: usize, rest_leng
 
     {
         let c1 = &mut circles[c1];
-        if !c1.pinfo.is_locked {
-            c1.pinfo.acc.x += force.x - damping_force.x;
-            c1.pinfo.acc.y += force.y - damping_force.y;
-        }
+        c1.pinfo.acc.x += force.x - damping_force.x;
+        c1.pinfo.acc.y += force.y - damping_force.y;
     }
     {
         let c2 = &mut circles[c2];
-        if !c2.pinfo.is_locked {
-            c2.pinfo.acc.x -= force.x - damping_force.x;
-            c2.pinfo.acc.y -= force.y - damping_force.y;
-        }
+        c2.pinfo.acc.x -= force.x - damping_force.x;
+        c2.pinfo.acc.y -= force.y - damping_force.y;
     }
 }
 
@@ -435,7 +433,7 @@ fn main() {
 
     for _ in 0..CIRCLE_NUMBER {
         circles.push(Circle {
-            radius: DEFAULT_RADIUS,
+            radius: rand::random::<f64>() * (RADIUS_MAX - RADIUS_MIN) + RADIUS_MIN,
             pinfo: PhysicsInfo {
                 pos: Double {
                     x: WIDTH as f64 * rand::random::<f64>(),
@@ -443,27 +441,53 @@ fn main() {
                 },
                 vel: Double { x: 0.0, y: 0.0 },
                 acc: Double { x: rand::random::<f64>() * 5.0, y: rand::random::<f64>() * 5.0 },
-                is_locked: false,
-                lock_point: Double { x: 0.0, y: 0.0 },
             },
+            color: [rand::random::<f32>(), rand::random::<f32>(), rand::random::<f32>(), 1.0],
+            is_dragged: false,
         });
     }
 
-    create_rope(&mut circles, &mut staticlinks, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0}, 100.0, 10, -1);
+    //create_rope(&mut circles, &mut staticlinks, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0}, 110.0, 8, true);
 
-    //create_softbody(&mut circles, &mut staticlinks, 30, 100.0, 10.0, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0});
+    create_softbody(&mut circles, &mut staticlinks, 30, 100.0, 10.0, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0});
+
+
+    let mut mouse_position = Double { x: 0.0, y: 0.0 };
 
     while let Some(event) = window.next() {
+        if let Some(pos) = event.mouse_cursor_args() {
+            mouse_position = Double { x: pos[0], y: pos[1] };
+        }
+        if let Some(button) = event.press_args() {
+            if button == Button::Mouse(MouseButton::Left) {
+                for circle in &mut circles {
+                    let dx = mouse_position.x - circle.pinfo.pos.x;
+                    let dy = mouse_position.y - circle.pinfo.pos.y;
+                    let distance = (dx * dx + dy * dy).sqrt();
+                    if distance <= circle.radius {
+                        circle.is_dragged = true;
+                    }
+                }
+            }
+        }
+        if let Some(button) = event.release_args() {
+            if button == Button::Mouse(MouseButton::Left) {
+                for circle in &mut circles {
+                    circle.is_dragged = false;
+                }
+            }
+        }
+
         window.draw_2d(&event, |context, graphics, _| {
             clear([1.0; 4], graphics);
             grid.reset();
 
             let mut i: i64 = 0;
             for circle in &mut circles {
-                circle.update(1.0 / 60.0 * SPEED_FACTOR);
+                circle.update(1.0 / 60.0 * SPEED_FACTOR, mouse_position);
                 grid.add_obj(*circle, i);
                 ellipse(
-                    DEFAULT_COLOR,
+                    circle.color,
                     [
                         circle.pinfo.pos.x - circle.radius,
                         circle.pinfo.pos.y - circle.radius,
