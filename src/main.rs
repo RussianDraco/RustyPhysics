@@ -479,29 +479,77 @@ struct UserTerminal {
     display_text: String,
     input_text: String,
     cursor_pos: Double,
+    cursor_mode: String,
+
 }
 /*
 User Terminal Commands:
     help | Display types of help texts
         help text | Display commands that run on terminal texts
             help circle
-                circle -RADIUS -R -G -B -A -X -Y | Create a circle with (flags) radius RADIUS and color R G B A at position X Y
+                circle -radius -R -G -B -A -X -Y | Create a circle with (flags) radius radius and color R G B A at position X Y
         
         help mouse | Display commands that change modes for the mouse
             help circlemode
-                circlemode -RADIUS -R -G -B -A | Change mouse mode to make circles with (flags) radius RADIUS and color R G B A
+                circlemode -radius -R -G -B -A | Change mouse mode to make circles with (flags) radius radius and color R G B A
 */
 impl UserTerminal {
-    fn execute_input(&mut self) {
-        let mut d = false;
+    fn eval_cursor_click(&mut self, circles: &mut Vec<Circle>, links: &mut Vec<Link>, staticlinks: &mut Vec<StaticLink>) {
+        if self.cursor_mode.starts_with("circle") {
+            let mut args = self.cursor_mode.split(",");
+            args.next();
+            let radius = args.next().unwrap().parse().unwrap();
+            let r = args.next().unwrap().parse().unwrap();
+            let g = args.next().unwrap().parse().unwrap();
+            let b = args.next().unwrap().parse().unwrap();
+            let a = args.next().unwrap().parse().unwrap();
+            circles.push(Circle {
+                radius,
+                pinfo: PhysicsInfo {
+                    pos: Double { x: self.cursor_pos.x, y: self.cursor_pos.y },
+                    vel: Double { x: 0.0, y: 0.0 },
+                    acc: Double { x: 0.0, y: 0.0 },
+                },
+                color: [r, g, b, a],
+                is_dragged: false,
+            });
+            println!("CIRCLEMODE: Creating circle with radius: {}, color: {:?}", radius, [r, g, b, a]);
+        }
+    }
+
+    fn eval_cursor_mode(&mut self, event: &Event, context: &Context, graphics: &mut G2d) {
+        if self.cursor_mode.starts_with("circle") {
+            let mut args = self.cursor_mode.split(",");
+            args.next();
+            let radius: f64 = args.next().unwrap().parse().unwrap();
+            let r = args.next().unwrap().parse().unwrap();
+            let g = args.next().unwrap().parse().unwrap();
+            let b = args.next().unwrap().parse().unwrap();
+            let a: f32 = args.next().unwrap().parse().unwrap();
+
+            ellipse(
+                [r, g, b, a / 2.0],
+                [
+                    self.cursor_pos.x - radius,
+                    self.cursor_pos.y - radius,
+                    radius * 2.0,
+                    radius * 2.0,
+                ],
+                context.transform,
+                graphics,
+            );
+        }
+    }
+
+    fn execute_input(&mut self, circles: &mut Vec<Circle>, links: &mut Vec<Link>, staticlinks: &mut Vec<StaticLink>) {
         match self.input_text.trim() {
-            "help" => {self.display_text = String::from("help text-Display text commands|help mouse-Display mouse commands");d=true;}
+            "help" => {self.display_text = String::from("help text-Display text commands|help mouse-Display mouse commands");}
 
 
-            "help text" => {self.display_text = String::from("help +circle");d=true;}
+            "help text" => {self.display_text = String::from("help +circle");}
 
-            "help circle" => {self.display_text = String::from("circle -RADIUS -R -G -B -A -X -Y");d=true;}
-            s if s.starts_with("circle") => {
+            "help circle" => {self.display_text = String::from("circle -radius -r -g -b -a -x -y");}
+            s if s.starts_with("circle ") || s == "circle" => {
                 let mut args = s.split_whitespace();
                 args.next();
                 let mut radius = DEFAULT_RADIUS;
@@ -509,17 +557,17 @@ impl UserTerminal {
                 let mut pos = Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0 };
                 while let Some(arg) = args.next() {
                     match arg {
-                        "-RADIUS" => {radius = args.next().unwrap().parse().unwrap();}
-                        "-R" => {color[0] = args.next().unwrap().parse().unwrap();}
-                        "-G" => {color[1] = args.next().unwrap().parse().unwrap();}
-                        "-B" => {color[2] = args.next().unwrap().parse().unwrap();}
-                        "-A" => {color[3] = args.next().unwrap().parse().unwrap();}
-                        "-X" => {pos.x = args.next().unwrap().parse().unwrap();}
-                        "-Y" => {pos.y = args.next().unwrap().parse().unwrap();}
+                        "-radius" => {radius = args.next().unwrap().parse().unwrap();}
+                        "-r" => {color[0] = args.next().unwrap().parse().unwrap();}
+                        "-g" => {color[1] = args.next().unwrap().parse().unwrap();}
+                        "-b" => {color[2] = args.next().unwrap().parse().unwrap();}
+                        "-a" => {color[3] = args.next().unwrap().parse().unwrap();}
+                        "-x" => {pos.x = args.next().unwrap().parse().unwrap();}
+                        "-y" => {pos.y = args.next().unwrap().parse().unwrap();}
                         _ => {}
                     }
                 }
-                let mut circles: Vec<Circle> = Vec::new();
+                println!("Creating circle with radius: {}, color: {:?}", radius, color);
                 circles.push(Circle {
                     radius,
                     pinfo: PhysicsInfo {
@@ -532,9 +580,27 @@ impl UserTerminal {
                 });
             }
 
-            "help mouse" => {self.display_text = String::from("help +circlemode");d=true;}
+            "help mouse" => {self.display_text = String::from("help +circlemode");}
 
-            "help circlemode" => {self.display_text = String::from("circlemode -RADIUS -R -G -B -A");d=true;}
+            "help circlemode" => {self.display_text = String::from("circlemode -radius -r -g -b -a");}
+            s if s.starts_with("circlemode") => {
+                let mut args = s.split_whitespace();
+                args.next();
+                let mut radius = DEFAULT_RADIUS;
+                let mut color = DEFAULT_COLOR;
+                while let Some(arg) = args.next() {
+                    match arg {
+                        "-radius" => {radius = args.next().unwrap().parse().unwrap();}
+                        "-r" => {color[0] = args.next().unwrap().parse().unwrap();}
+                        "-g" => {color[1] = args.next().unwrap().parse().unwrap();}
+                        "-b" => {color[2] = args.next().unwrap().parse().unwrap();}
+                        "-a" => {color[3] = args.next().unwrap().parse().unwrap();}
+                        _ => {}
+                    }
+                }
+                println!("Changing cursor mode to circle with radius: {}, color: {:?}", radius, color);
+                self.cursor_mode = format!("circle,{},{},{},{},{}", radius, color[0], color[1], color[2], color[3]);
+            }
 
             _ => {}
         }
@@ -542,10 +608,10 @@ impl UserTerminal {
         self.input_text.clear();
     }
 
-    fn handle_events(&mut self, event: &Event) {
+    fn handle_events(&mut self, event: &Event, circles: &mut Vec<Circle>, links: &mut Vec<Link>, staticlinks: &mut Vec<StaticLink>) {
         if let Some(Button::Keyboard(key)) = event.press_args() {
             match key {
-                Key::Return => {self.execute_input();}
+                Key::Return => {self.execute_input(circles, links, staticlinks);}
                 Key::Backspace => {self.input_text.pop();}
                 Key::A => {self.input_text.push('a');}
                 Key::B => {self.input_text.push('b');}
@@ -584,6 +650,8 @@ impl UserTerminal {
                 Key::D8 => {self.input_text.push('8');}
                 Key::D9 => {self.input_text.push('9');}
                 Key::Space => {self.input_text.push(' ');}
+                Key::Minus => {self.input_text.push('-');}
+                Key::Period => {self.input_text.push('.');}
                 _ => {}
             }
         }
@@ -608,6 +676,7 @@ fn main() {
         display_text: String::from("TYPE help TO START"),
         input_text: String::from(""),
         cursor_pos: Double { x: -1.0, y: -1.0 },
+        cursor_mode: String::from(""),
     };
 
     let mut grid = Grid::new(WIDTH, HEIGHT, CELL_SIZE);
@@ -633,19 +702,21 @@ fn main() {
 
     //create_rope(&mut circles, &mut staticlinks, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0}, 110.0, 8, true);
 
-    create_spring_softbody(&mut circles, &mut links, 30, 100.0, 10.0, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0});
+    //create_spring_softbody(&mut circles, &mut links, 30, 100.0, 10.0, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0});
 
 
     let mut mouse_position = Double { x: 0.0, y: 0.0 };
 
     while let Some(event) = window.next() {
-        terminal.handle_events(&event);
+        terminal.handle_events(&event, &mut circles, &mut links, &mut staticlinks);
         if let Some(pos) = event.mouse_cursor_args() {
             mouse_position = Double { x: pos[0], y: pos[1] };
             terminal.cursor_pos = Double { x: pos[0], y: pos[1] };
         }
         if let Some(button) = event.press_args() {
             if button == Button::Mouse(MouseButton::Left) {
+                terminal.eval_cursor_click(&mut circles, &mut links, &mut staticlinks);
+
                 for circle in &mut circles {
                     let dx = mouse_position.x - circle.pinfo.pos.x;
                     let dy = mouse_position.y - circle.pinfo.pos.y;
@@ -720,6 +791,8 @@ fn main() {
                     graphics,
                 );
             }
+
+            terminal.eval_cursor_mode(&event, &context, graphics);
 
             draw_text(&context, graphics, &mut glyphs, [0.0, 0.0, 0.0, 1.0], Double { x: 0.0, y: 20.0 }, &terminal.display_text);
             rectangle(
