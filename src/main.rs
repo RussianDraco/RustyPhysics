@@ -1,4 +1,5 @@
 extern crate piston_window;
+extern crate find_folder;
 
 use piston_window::*;
 use rand;
@@ -202,6 +203,9 @@ impl Circle {
             self.pinfo.pos.y += self.pinfo.vel.y * dt;
             self.pinfo.pos.x += self.pinfo.vel.x * dt;
 
+            self.pinfo.pos.x = f64::max(f64::min(self.pinfo.pos.x, (WIDTH as f64 - 1.0 - self.radius) as f64), self.radius);
+            self.pinfo.pos.y = f64::max(f64::min(self.pinfo.pos.y, (HEIGHT as f64 - 1.0 - self.radius) as f64), self.radius);
+
             return;
         }
 
@@ -355,6 +359,39 @@ fn create_softbody(circles: &mut Vec<Circle>, links: &mut Vec<StaticLink>, num_o
     });
 }
 
+fn create_spring_softbody(circles: &mut Vec<Circle>, links: &mut Vec<Link>, num_of_circles: usize, radius: f64, sub_radius: f64, pos: Double) {
+    let circum = 2.0 * PI * radius;
+    let rest_len = circum / num_of_circles as f64;
+    let circles_len = circles.len();
+    for i in 0..num_of_circles {
+        circles.push(Circle {
+            radius: sub_radius,
+            pinfo: PhysicsInfo {
+                pos: Double {
+                    x: radius * (i as f64 * 2.0 * PI / num_of_circles as f64).cos() + pos.x,
+                    y: radius * (i as f64 * 2.0 * PI / num_of_circles as f64).sin() + pos.y,
+                },
+                vel: Double { x: 0.0, y: 0.0 },
+                acc: Double { x: 0.0, y: 0.0 },
+            },
+            color: DEFAULT_COLOR,
+            is_dragged: false,
+        });
+        if i > 0 {
+            links.push(Link {
+                c1: i + circles_len - 1,
+                c2: i + circles_len,
+                rest_length: rest_len,
+            });
+        }
+    }
+    links.push(Link {
+        c1: circles_len,
+        c2: circles_len + num_of_circles - 1,
+        rest_length: rest_len,
+    });
+}
+
 fn apply_spring_force(circles: &mut Vec<Circle>, c1: usize, c2: usize, rest_length: f64) {
     let c1_pos = circles[c1].pinfo.pos;
     let c2_pos = circles[c2].pinfo.pos;
@@ -419,12 +456,66 @@ fn apply_static_link(circles: &mut Vec<Circle>, c1: usize, c2: usize, rest_lengt
     }
 }
 
+fn draw_text(
+    ctx: &Context,
+    graphics: &mut G2d,
+    glyphs: &mut Glyphs,
+    color: [f32; 4],
+    pos: Double,
+    text: &str
+) {
+    text::Text::new_color(color, 20)
+        .draw(
+            text,
+            glyphs,
+            &ctx.draw_state,
+            ctx.transform.trans(pos.x as f64, pos.y as f64),
+            graphics,
+        )
+        .unwrap();
+}
+
+struct UserTerminal {
+    display_text: String,
+    input_text: String,
+    cursor_pos: Double,
+}
+impl UserTerminal {
+    fn handle_events(&mut self, event: Event) {
+        match event {
+            Event::Input(Input::Text(text)) => {
+                self.input_text.push_str(&text);
+            }
+            Event::Input(Input::Press(Button::Backspace)) => {
+                self.input_text.pop();
+            }
+            Event::Input(Input::Press(Button::Return)) => {
+                self.display_text = self.input_text.clone();
+                self.input_text.clear();
+            }
+            _ => {}
+        }
+    }
+}
+
 
 fn main() {
     let mut window: PistonWindow = WindowSettings::new("Rusty Physics", [WIDTH as u32, HEIGHT as u32])
         .exit_on_esc(true)
         .build()
         .unwrap();
+
+    let assets = find_folder::Search::ParentsThenKids(3, 3)
+        .for_folder("assets")
+        .unwrap();
+    let ref font = assets.join("roboto.ttf");
+    let mut glyphs = window.load_font(font).unwrap();
+
+    let mut terminal = UserTerminal {
+        display_text: String::from("help 1 || help 2 || help 3"),
+        input_text: String::from(""),
+        cursor_pos: Double { x: -1.0, y: -1.0 },
+    };
 
     let mut grid = Grid::new(WIDTH, HEIGHT, CELL_SIZE);
     let mut circles: Vec<Circle> = Vec::new();
@@ -449,14 +540,16 @@ fn main() {
 
     //create_rope(&mut circles, &mut staticlinks, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0}, 110.0, 8, true);
 
-    create_softbody(&mut circles, &mut staticlinks, 30, 100.0, 10.0, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0});
+    create_spring_softbody(&mut circles, &mut links, 30, 100.0, 10.0, Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0});
 
 
     let mut mouse_position = Double { x: 0.0, y: 0.0 };
 
     while let Some(event) = window.next() {
+        terminal.handle_events(event);
         if let Some(pos) = event.mouse_cursor_args() {
             mouse_position = Double { x: pos[0], y: pos[1] };
+            terminal.cursor_pos = Double { x: pos[0], y: pos[1] };
         }
         if let Some(button) = event.press_args() {
             if button == Button::Mouse(MouseButton::Left) {
@@ -478,8 +571,9 @@ fn main() {
             }
         }
 
-        window.draw_2d(&event, |context, graphics, _| {
+        window.draw_2d(&event, |context, graphics, device| {
             clear([1.0; 4], graphics);
+
             grid.reset();
 
             let mut i: i64 = 0;
@@ -533,6 +627,17 @@ fn main() {
                     graphics,
                 );
             }
+
+            draw_text(&context, graphics, &mut glyphs, [0.0, 0.0, 0.0, 1.0], Double { x: 0.0, y: 20.0 }, &terminal.display_text);
+            rectangle(
+                [0.0, 0.0, 0.0, 0.5],
+                [0.0, 25.0, WIDTH as f64, 25.0],
+                context.transform,
+                graphics,
+            );
+            draw_text(&context, graphics, &mut glyphs, [0.0, 0.0, 0.0, 1.0], Double { x: 0.0, y: 45.0 }, &terminal.input_text);
+
+            glyphs.factory.encoder.flush(device);
         });
     }
 }
