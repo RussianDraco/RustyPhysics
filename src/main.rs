@@ -487,11 +487,19 @@ User Terminal Commands:
     help | Display types of help texts
         help text | Display commands that run on terminal texts
             help circle
-                circle -radius -R -G -B -A -X -Y | Create a circle with (flags) radius radius and color R G B A at position X Y
-        
+                circle -radius -r -g -b -a -x -y | Create a circle with (flags) radius radius and color R G B A at position X Y
+            help softbody
+                softbody -circlenum -radius -subradius -x -y | Create a softbody with (flags) num number of circles with radius radius and subradius subradius at position X Y
+            help springbody
+                springbody -circlenum -radius -subradius -x -y | Create a springbody with (flags) num number of circles with radius radius and subradius subradius at position X Y
+
         help mouse | Display commands that change modes for the mouse
             help circlemode
-                circlemode -radius -R -G -B -A | Change mouse mode to make circles with (flags) radius radius and color R G B A
+                circlemode -radius -r -g -b -a | Change mouse mode to make circles with (flags) radius radius and color R G B A
+            help softbodymode
+                softbodymode -circlenum -radius -subradius | Change mouse mode to make softbodies with (flags) num number of circles with radius radius and subradius subradius
+            help springbodymode
+                springbodymode -circlenum -radius -subradius | Change mouse mode to make springbodies with (flags) num number of circles with radius radius and subradius subradius
 */
 impl UserTerminal {
     fn eval_cursor_click(&mut self, circles: &mut Vec<Circle>, links: &mut Vec<Link>, staticlinks: &mut Vec<StaticLink>) {
@@ -514,6 +522,22 @@ impl UserTerminal {
                 is_dragged: false,
             });
             println!("CIRCLEMODE: Creating circle with radius: {}, color: {:?}", radius, [r, g, b, a]);
+            self.display_text = format!("Made circle: radius: {}, color: {:?}, x: {}, y: {}", radius, [r, g, b, a], self.cursor_pos.x, self.cursor_pos.y);
+        } else if self.cursor_mode.starts_with("softbody") || self.cursor_mode.starts_with("springbody") {
+            let mut args = self.cursor_mode.split(",");
+            args.next();
+            let num = args.next().unwrap().parse().unwrap();
+            let radius = args.next().unwrap().parse().unwrap();
+            let subradius = args.next().unwrap().parse().unwrap();
+            if (self.cursor_mode.starts_with("springbody")) {
+                create_spring_softbody(circles, links, num, radius, subradius, Double { x: self.cursor_pos.x, y: self.cursor_pos.y });
+                println!("SPRINGBODYMODE: Creating springbody with num: {}, radius: {}, subradius: {}", num, radius, subradius);
+                self.display_text = format!("Made springbody: circlenum: {}, radius: {}, subradius: {}, x: {}, y: {}", num, radius, subradius, self.cursor_pos.x, self.cursor_pos.y);
+            } else {
+                create_softbody(circles, staticlinks, num, radius, subradius, Double { x: self.cursor_pos.x, y: self.cursor_pos.y });
+                println!("SOFTBODYMODE: Creating softbody with num: {}, radius: {}, subradius: {}", num, radius, subradius);
+                self.display_text = format!("Made softbody: circlenum: {}, radius: {}, subradius: {}, x: {}, y: {}", num, radius, subradius, self.cursor_pos.x, self.cursor_pos.y);
+            }
         }
     }
 
@@ -538,10 +562,45 @@ impl UserTerminal {
                 context.transform,
                 graphics,
             );
+        } else if self.cursor_mode.starts_with("softbody") || self.cursor_mode.starts_with("springbody") {
+            let mut args = self.cursor_mode.split(",");
+            args.next();
+            let num: usize = args.next().unwrap().parse().unwrap();
+            let radius: f64 = args.next().unwrap().parse().unwrap();
+            let subradius: f64 = args.next().unwrap().parse().unwrap();
+
+            for i in 0..num {
+                let start_x = self.cursor_pos.x + radius * (i as f64 * 2.0 * PI / num as f64).cos();
+                let start_y = self.cursor_pos.y + radius * (i as f64 * 2.0 * PI / num as f64).sin();
+                let end_x = self.cursor_pos.x + radius * ((i + 1) as f64 * 2.0 * PI / num as f64).cos();
+                let end_y = self.cursor_pos.y + radius * ((i + 1) as f64 * 2.0 * PI / num as f64).sin();
+
+                line (
+                    [0.0, 0.0, 0.0, 0.5],
+                    1.0,
+                    [start_x, start_y, end_x, end_y],
+                    context.transform,
+                    graphics,
+                );
+                ellipse (
+                    [1.0, 0.0, 0.0, 0.5],
+                    [
+                        self.cursor_pos.x + radius * (i as f64 * 2.0 * PI / num as f64).cos() - subradius,
+                        self.cursor_pos.y + radius * (i as f64 * 2.0 * PI / num as f64).sin() - subradius,
+                        subradius * 2.0,
+                        subradius * 2.0,
+                    ],
+                    context.transform,
+                    graphics,
+                );
+            }
+            
         }
     }
 
     fn execute_input(&mut self, circles: &mut Vec<Circle>, links: &mut Vec<Link>, staticlinks: &mut Vec<StaticLink>) {
+        println!("Executing input: `{}`", self.input_text.trim());
+
         match self.input_text.trim() {
             "help" => {self.display_text = String::from("help text-Display text commands|help mouse-Display mouse commands");}
 
@@ -568,6 +627,7 @@ impl UserTerminal {
                     }
                 }
                 println!("Creating circle with radius: {}, color: {:?}", radius, color);
+                self.display_text = format!("Made circle: radius: {}, color: {:?}, x: {}, y: {}", radius, color, pos.x, pos.y);
                 circles.push(Circle {
                     radius,
                     pinfo: PhysicsInfo {
@@ -578,6 +638,50 @@ impl UserTerminal {
                     color,
                     is_dragged: false,
                 });
+            }
+            "help softbody" => {self.display_text = String::from("softbody -circlenum -radius -subradius -x -y");}
+            s if s.starts_with("softbody ") || s == "softbody" => {
+                let mut args = s.split_whitespace();
+                args.next();
+                let mut num = 10;
+                let mut radius = 100.0;
+                let mut subradius = 10.0;
+                let mut pos = Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0 };
+                while let Some(arg) = args.next() {
+                    match arg {
+                        "-circlenum" => {num = args.next().unwrap().parse().unwrap();}
+                        "-radius" => {radius = args.next().unwrap().parse().unwrap();}
+                        "-subradius" => {subradius = args.next().unwrap().parse().unwrap();}
+                        "-x" => {pos.x = args.next().unwrap().parse().unwrap();}
+                        "-y" => {pos.y = args.next().unwrap().parse().unwrap();}
+                        _ => {}
+                    }
+                }
+                println!("Creating softbody with num: {}, radius: {}, subradius: {}", num, radius, subradius);
+                self.display_text = format!("Made softbody: circlenum: {}, radius: {}, subradius: {}, x: {}, y: {}", num, radius, subradius, pos.x, pos.y);
+                create_softbody(circles, staticlinks, num, radius, subradius, pos);
+            }
+            "help springbody" => {self.display_text = String::from("springbody -circlenum -radius -subradius -x -y");}
+            s if s.starts_with("springbody ") || s == "springbody" => {
+                let mut args = s.split_whitespace();
+                args.next();
+                let mut num = 10;
+                let mut radius = 100.0;
+                let mut subradius = 10.0;
+                let mut pos = Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0 };
+                while let Some(arg) = args.next() {
+                    match arg {
+                        "-circlenum" => {num = args.next().unwrap().parse().unwrap();}
+                        "-radius" => {radius = args.next().unwrap().parse().unwrap();}
+                        "-subradius" => {subradius = args.next().unwrap().parse().unwrap();}
+                        "-x" => {pos.x = args.next().unwrap().parse().unwrap();}
+                        "-y" => {pos.y = args.next().unwrap().parse().unwrap();}
+                        _ => {}
+                    }
+                }
+                println!("Creating springbody with num: {}, radius: {}, subradius: {}", num, radius, subradius);
+                self.display_text = format!("Made springbody: circlenum: {}, radius: {}, subradius: {}, x: {}, y: {}", num, radius, subradius, pos.x, pos.y);
+                create_spring_softbody(circles, links, num, radius, subradius, pos);
             }
 
             "help mouse" => {self.display_text = String::from("help +circlemode");}
@@ -599,10 +703,52 @@ impl UserTerminal {
                     }
                 }
                 println!("Changing cursor mode to circle with radius: {}, color: {:?}", radius, color);
+                self.display_text = format!("Circle mode: radius: {}, color: {:?}", radius, color);
                 self.cursor_mode = format!("circle,{},{},{},{},{}", radius, color[0], color[1], color[2], color[3]);
             }
+            "help softbodymode" => {self.display_text = String::from("softbodymode -circlenum -radius -subradius -x -y");}
+            s if s.starts_with("softbodymode") => {
+                let mut args = s.split_whitespace();
+                args.next();
+                let mut num = 10;
+                let mut radius = 100.0;
+                let mut subradius = DEFAULT_RADIUS;
+                let mut pos = Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0 };
+                while let Some(arg) = args.next() {
+                    match arg {
+                        "-circlenum" => {num = args.next().unwrap().parse().unwrap();}
+                        "-radius" => {radius = args.next().unwrap().parse().unwrap();}
+                        "-subradius" => {subradius = args.next().unwrap().parse().unwrap();}
+                        "-x" => {pos.x = args.next().unwrap().parse().unwrap();}
+                        "-y" => {pos.y = args.next().unwrap().parse().unwrap();}
+                        _ => {}
+                    }
+                }
+                println!("Changing cursor mode to softbody with num: {}, radius: {}, subradius: {}", num, radius, subradius);
+                self.display_text = format!("Softbody mode: circlenum: {}, radius: {}, subradius: {}", num, radius, subradius);
+                self.cursor_mode = format!("softbody,{},{},{}", num, radius, subradius);
+            }
+            "help springbodymode" => {self.display_text = String::from("springbodymode -circlenum -radius -subradius");}
+            s if s.starts_with("springbodymode") => {
+                let mut args = s.split_whitespace();
+                args.next();
+                let mut num = 10;
+                let mut radius = 100.0;
+                let mut subradius = DEFAULT_RADIUS;
+                while let Some(arg) = args.next() {
+                    match arg {
+                        "-circlenum" => {num = args.next().unwrap().parse().unwrap();}
+                        "-radius" => {radius = args.next().unwrap().parse().unwrap();}
+                        "-subradius" => {subradius = args.next().unwrap().parse().unwrap();}
+                        _ => {}
+                    }
+                }
+                println!("Changing cursor mode to springbody with num: {}, radius: {}, subradius: {}", num, radius, subradius);
+                self.display_text = format!("Springbody mode: circlenum: {}, radius: {}, subradius: {}", num, radius, subradius);
+                self.cursor_mode = format!("springbody,{},{},{}", num, radius, subradius);
+            }
 
-            _ => {}
+            _ => {println!("Invalid Command.");}
         }
 
         self.input_text.clear();
