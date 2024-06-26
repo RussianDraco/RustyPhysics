@@ -3,25 +3,68 @@ extern crate find_folder;
 
 use piston_window::*;
 use rand;
+use std::sync::Mutex;
 
 use std::f64::consts::PI;
 
-const GRAVITY: f64 = 9.8;
+struct PARAMETERS {
+    gravity: f64,
+    speed_factor: f64,
+    air_resistance: f64,
+    collide_loss: f64,
+    spring_const: f64,
+    damp_const: f64,
+    default_radius: f64,
+    default_color: [f32; 4],
+    default_link_length: f64,
+}
+/*
+impl PARAMETERS {
+    fn modify(&mut self, var: String, new: f64) {
+        match var.as_str() {
+            "gravity" => {self.gravity = new;}
+            "speed_factor" => {self.speed_factor = new;}
+            "air_resistance" => {self.air_resistance = new;}
+            "collide_loss" => {self.collide_loss = new;}
+            "spring_const" => {self.spring_const = new;}
+            "damp_const" => {self.damp_const = new;}
+            "default_radius" => {self.default_radius = new;}
+            "default_link_length" => {self.default_link_length = new;}
+            _ => {}
+        }
+    }
+}*/
+
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 600;
 const CELL_SIZE: i32 = 50;
+const RADIUS_MIN: f64 = 10.0;
+const RADIUS_MAX: f64 = 20.0;
+const CIRCLE_NUMBER: usize = 30;
+
+/*
+const GRAVITY: f64 = 9.8;
 const SPEED_FACTOR: f64 = 3.0;
 const AIR_RESISTANCE: f64 = 0.05;
 const COLLIDE_LOSS: f64 = 0.4;
 const SPRING_CONST: f64 = 0.1;
 const DAMP_CONST: f64 = 0.05;
 const DEFAULT_RADIUS: f64 = 10.0;
-const RADIUS_MIN: f64 = 10.0;
-const RADIUS_MAX: f64 = 20.0;
 const DEFAULT_COLOR: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 const DEFAULT_LINK_LENGTH: f64 = 20.0;
+*/
 
-const CIRCLE_NUMBER: usize = 30;
+static MANAGER: Mutex<PARAMETERS> = Mutex::new(PARAMETERS {
+    gravity: 9.8,
+    speed_factor: 3.0,
+    air_resistance: 0.05,
+    collide_loss: 0.4,
+    spring_const: 0.1,
+    damp_const: 0.05,
+    default_radius: 10.0,
+    default_color: [1.0, 0.0, 0.0, 1.0],
+    default_link_length: 20.0,
+});
 
 #[derive(Clone)]
 struct Cell {
@@ -218,37 +261,41 @@ impl Circle {
             }
         }
 
+        let collide_loss = MANAGER.lock().unwrap().collide_loss;
+        let gravity = MANAGER.lock().unwrap().gravity;
+        let air_resistance = MANAGER.lock().unwrap().air_resistance;
+
         if self.pinfo.pos.x + self.radius + 1.0 >= WIDTH as f64 {
-            self.pinfo.vel.x = -self.pinfo.vel.x + opposite_sign(-self.pinfo.vel.x) * COLLIDE_LOSS * self.pinfo.vel.x;
-            self.pinfo.acc.x = -self.pinfo.acc.x + opposite_sign(-self.pinfo.acc.x) * COLLIDE_LOSS * self.pinfo.acc.x;
+            self.pinfo.vel.x = -self.pinfo.vel.x + opposite_sign(-self.pinfo.vel.x) * collide_loss * self.pinfo.vel.x;
+            self.pinfo.acc.x = -self.pinfo.acc.x + opposite_sign(-self.pinfo.acc.x) * collide_loss * self.pinfo.acc.x;
         }
         if self.pinfo.pos.x - self.radius - 1.0 <= 0.0 {
-            self.pinfo.vel.x = -self.pinfo.vel.x + opposite_sign(-self.pinfo.vel.x) * COLLIDE_LOSS * self.pinfo.vel.x;
-            self.pinfo.acc.x = -self.pinfo.acc.x + opposite_sign(-self.pinfo.acc.x) * COLLIDE_LOSS * self.pinfo.acc.x;
+            self.pinfo.vel.x = -self.pinfo.vel.x + opposite_sign(-self.pinfo.vel.x) * collide_loss * self.pinfo.vel.x;
+            self.pinfo.acc.x = -self.pinfo.acc.x + opposite_sign(-self.pinfo.acc.x) * collide_loss * self.pinfo.acc.x;
         }
-        if GRAVITY == 0.0 && self.pinfo.pos.y + self.radius + 1.0 >= HEIGHT as f64 {
-            self.pinfo.vel.y = -self.pinfo.vel.y + opposite_sign(-self.pinfo.vel.y) * COLLIDE_LOSS * self.pinfo.vel.y;
-            self.pinfo.acc.y = -self.pinfo.acc.y + opposite_sign(-self.pinfo.acc.y) * COLLIDE_LOSS * self.pinfo.acc.y;
+        if gravity == 0.0 && self.pinfo.pos.y + self.radius + 1.0 >= HEIGHT as f64 {
+            self.pinfo.vel.y = -self.pinfo.vel.y + opposite_sign(-self.pinfo.vel.y) * collide_loss * self.pinfo.vel.y;
+            self.pinfo.acc.y = -self.pinfo.acc.y + opposite_sign(-self.pinfo.acc.y) * collide_loss * self.pinfo.acc.y;
         }
         if self.pinfo.pos.y - self.radius - 1.0 <= 0.0 {
-            self.pinfo.vel.y = -self.pinfo.vel.y + opposite_sign(-self.pinfo.vel.y) * COLLIDE_LOSS * self.pinfo.vel.y;
-            self.pinfo.acc.y = -self.pinfo.acc.y + opposite_sign(-self.pinfo.acc.y) * COLLIDE_LOSS * self.pinfo.acc.y;
+            self.pinfo.vel.y = -self.pinfo.vel.y + opposite_sign(-self.pinfo.vel.y) * collide_loss * self.pinfo.vel.y;
+            self.pinfo.acc.y = -self.pinfo.acc.y + opposite_sign(-self.pinfo.acc.y) * collide_loss * self.pinfo.acc.y;
         }
 
-        if GRAVITY > 0.0 {
-            self.pinfo.acc.y = GRAVITY;
+        if gravity > 0.0 {
+            self.pinfo.acc.y = gravity;
             if self.touching_ground() {
-                self.pinfo.vel.y = -self.pinfo.vel.y + opposite_sign(-self.pinfo.vel.y) * COLLIDE_LOSS * self.pinfo.vel.y;
+                self.pinfo.vel.y = -self.pinfo.vel.y + opposite_sign(-self.pinfo.vel.y) * collide_loss * self.pinfo.vel.y;
             }
         }
 
-        self.pinfo.acc.x += (opposite_sign(self.pinfo.acc.x) * AIR_RESISTANCE * self.pinfo.vel.x * self.pinfo.vel.x) * dt;
-        self.pinfo.acc.y += (opposite_sign(self.pinfo.acc.y) * AIR_RESISTANCE * self.pinfo.vel.y * self.pinfo.vel.y) * dt;
+        self.pinfo.acc.x += (opposite_sign(self.pinfo.acc.x) * air_resistance * self.pinfo.vel.x * self.pinfo.vel.x) * dt;
+        self.pinfo.acc.y += (opposite_sign(self.pinfo.acc.y) * air_resistance * self.pinfo.vel.y * self.pinfo.vel.y) * dt;
 
         self.pinfo.vel.y += (self.pinfo.acc.y) * dt;
         self.pinfo.vel.x += (self.pinfo.acc.x) * dt;
 
-        self.pinfo.vel.x *= 1.0 - AIR_RESISTANCE * dt;
+        self.pinfo.vel.x *= 1.0 - air_resistance * dt;
 
         self.pinfo.pos.y += self.pinfo.vel.y * dt;
         self.pinfo.pos.x += self.pinfo.vel.x * dt;
@@ -318,6 +365,7 @@ fn create_softbody(circles: &mut Vec<Circle>, links: &mut Vec<StaticLink>, num_o
     let circum = 2.0 * PI * radius;
     let rest_len = circum / num_of_circles as f64;
     let circles_len = circles.len();
+    let default_color = MANAGER.lock().unwrap().default_color;
     for i in 0..num_of_circles {
         circles.push(Circle {
             radius: sub_radius,
@@ -329,7 +377,7 @@ fn create_softbody(circles: &mut Vec<Circle>, links: &mut Vec<StaticLink>, num_o
                 vel: Double { x: 0.0, y: 0.0 },
                 acc: Double { x: 0.0, y: 0.0 },
             },
-            color: DEFAULT_COLOR,
+            color: default_color,
             is_dragged: false,
         });
         if i > 0 {
@@ -351,6 +399,7 @@ fn create_spring_softbody(circles: &mut Vec<Circle>, links: &mut Vec<Link>, num_
     let circum = 2.0 * PI * radius;
     let rest_len = circum / num_of_circles as f64;
     let circles_len = circles.len();
+    let default_color = MANAGER.lock().unwrap().default_color;
     for i in 0..num_of_circles {
         circles.push(Circle {
             radius: sub_radius,
@@ -362,7 +411,7 @@ fn create_spring_softbody(circles: &mut Vec<Circle>, links: &mut Vec<Link>, num_
                 vel: Double { x: 0.0, y: 0.0 },
                 acc: Double { x: 0.0, y: 0.0 },
             },
-            color: DEFAULT_COLOR,
+            color: default_color,
             is_dragged: false,
         });
         if i > 0 {
@@ -381,6 +430,9 @@ fn create_spring_softbody(circles: &mut Vec<Circle>, links: &mut Vec<Link>, num_
 }
 
 fn apply_spring_force(circles: &mut Vec<Circle>, c1: usize, c2: usize, rest_length: f64) {
+    let spring_const = MANAGER.lock().unwrap().spring_const;
+    let damp_const = MANAGER.lock().unwrap().damp_const;
+
     let c1_pos = circles[c1].pinfo.pos;
     let c2_pos = circles[c2].pinfo.pos;
     let displacement = c2_pos - c1_pos;
@@ -389,8 +441,8 @@ fn apply_spring_force(circles: &mut Vec<Circle>, c1: usize, c2: usize, rest_leng
         x: displacement.x / distance,
         y: displacement.y / distance,
     };
-    let spring_force = (distance - rest_length) * SPRING_CONST;
-    let damping_force = (circles[c2].pinfo.vel - circles[c1].pinfo.vel) * DAMP_CONST * 0.1;
+    let spring_force = (distance - rest_length) * spring_const;
+    let damping_force = (circles[c2].pinfo.vel - circles[c1].pinfo.vel) * damp_const * 0.1;
     let force = direction * spring_force;
 
     {
@@ -482,7 +534,7 @@ User Terminal Commands:
                 springbody -circlenum -radius -subradius -x -y | Create a springbody with (flags) num number of circles with radius radius and subradius subradius at position X Y
             help rope
                 rope -ropelength -segmentnum -x -y | Create a rope with (flags) length length and num number of segments at position X Y
-            help defaults
+            help default
 
         help mouse | Display commands that change modes for the mouse
             help circlemode
@@ -502,7 +554,8 @@ impl UserTerminal {
         self.display_text = "Cursor Mode Cleared".to_string();
     }
 
-    fn eval_cursor_release(&mut self, circles: &Vec<Circle>, links: &mut Vec<Link>, staticlinks: &mut Vec<StaticLink>) {
+    fn eval_cursor_release(&mut self, circles: &Vec<Circle>, links: &mut Vec<Link>) {
+        let default_link_length = MANAGER.lock().unwrap().default_link_length;
         if self.cursor_mode.starts_with("link") {
             let mut args = self.cursor_mode.split(",");
             args.next();
@@ -520,9 +573,9 @@ impl UserTerminal {
                     links.push(Link {
                         c1: n1,
                         c2: n2,
-                        rest_length: DEFAULT_LINK_LENGTH,
+                        rest_length: default_link_length,
                     });
-                    println!("LINKMODE: Creating link between circle {} and circle {} with rest length: {}", n1, n2, DEFAULT_LINK_LENGTH);
+                    println!("LINKMODE: Creating link between circle {} and circle {} with rest length: {}", n1, n2, default_link_length);
                     self.display_text = format!("Made link with default rest length: circle {} and circle {}", n1, n2);
                     break;
                 }
@@ -683,19 +736,20 @@ impl UserTerminal {
 
     fn execute_input(&mut self, circles: &mut Vec<Circle>, links: &mut Vec<Link>, staticlinks: &mut Vec<StaticLink>) {
         println!("Executing input: `{}`", self.input_text.trim());
+        let default_radius = MANAGER.lock().unwrap().default_radius;
+        let default_color = MANAGER.lock().unwrap().default_color;
 
         match self.input_text.trim() {
-            "help" => {self.display_text = String::from("help text-Display text commands|help mouse-Display mouse commands");}
+            "help" => {self.display_text = String::from("help text-Display text commands | help mouse-Display mouse commands");}
 
-
-            "help text" => {self.display_text = String::from("help +circle/softbody/springbody/rope/defaults");}
+            "help text" => {self.display_text = String::from("help +circle/softbody/springbody/rope/default");}
 
             "help circle" => {self.display_text = String::from("circle -radius -r -g -b -a -x -y");}
             s if s.starts_with("circle ") || s == "circle" => {
                 let mut args = s.split_whitespace();
                 args.next();
-                let mut radius = DEFAULT_RADIUS;
-                let mut color = DEFAULT_COLOR;
+                let mut radius = default_radius;
+                let mut color = default_color;
                 let mut pos = Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0 };
                 while let Some(arg) = args.next() {
                     match arg {
@@ -787,14 +841,45 @@ impl UserTerminal {
                 create_rope(circles, staticlinks, pos, rope_length, segment_num);
             }
 
+            "help default" => {self.display_text = String::from("default PARAMETER VALUE (help default 1/2/3 for parameters)");}
+            "help default 1" => {self.display_text = String::from("GRAVITY|SPEEDFACTOR|AIRRESISTANCE|COLLIDELOSS|SPRINGCONST");}
+            "help default 2" => {self.display_text = String::from("DAMPCONST|DEFAULTRADIUS|DEFAULTCOLORR|DEFAULTCOLORG");}
+            "help default 3" => {self.display_text = String::from("DEFAULTCOLORB|DEFAULTCOLORA|DEFAULTLINKLENGTH");}
+            s if s.starts_with("default") => {
+                let mut args = s.split_whitespace();
+                args.next();
+                let param = args.next().unwrap();
+                let value = args.next().unwrap().parse().unwrap();
+                let mut invalid: bool = false;
+                match param {
+                    "gravity" => {MANAGER.lock().unwrap().gravity = value;}
+                    "speedfactor" => {MANAGER.lock().unwrap().speed_factor = value;}
+                    "airresistance" => {MANAGER.lock().unwrap().air_resistance = value;}
+                    "collideloss" => {MANAGER.lock().unwrap().collide_loss = value;}
+                    "springconst" => {MANAGER.lock().unwrap().spring_const = value;}
+                    "dampconst" => {MANAGER.lock().unwrap().damp_const = value;}
+                    "defaultradius" => {MANAGER.lock().unwrap().default_radius = value;}
+                    "defaultcolorr" => {MANAGER.lock().unwrap().default_color[0] = value as f32;}
+                    "defaultcolorg" => {MANAGER.lock().unwrap().default_color[1] = value as f32;}
+                    "defaultcolorb" => {MANAGER.lock().unwrap().default_color[2] = value as f32;}
+                    "defaultcolora" => {MANAGER.lock().unwrap().default_color[3] = value as f32;}
+                    "defaultlinklength" => {MANAGER.lock().unwrap().default_link_length = value;}
+                    _ => {println!("Invalid Parameter"); self.display_text = format!("Invalid Parameter: {}", param); invalid = true;}
+                }
+                if !invalid {
+                    println!("Setting default parameter: {} to value: {}", param, value);
+                    self.display_text = format!("Setting default parameter: {} to value: {}", param, value);
+                }
+            }
+
             "help mouse" => {self.display_text = String::from("help +circlemode/softbodymode/springbodymode/ropemode/linkmode");}
 
             "help circlemode" => {self.display_text = String::from("circlemode -radius -r -g -b -a");}
             s if s.starts_with("circlemode") => {
                 let mut args = s.split_whitespace();
                 args.next();
-                let mut radius = DEFAULT_RADIUS;
-                let mut color = DEFAULT_COLOR;
+                let mut radius = default_radius;
+                let mut color = default_color;
                 while let Some(arg) = args.next() {
                     match arg {
                         "-radius" => {radius = args.next().unwrap().parse().unwrap();}
@@ -815,7 +900,7 @@ impl UserTerminal {
                 args.next();
                 let mut num = 10;
                 let mut radius = 100.0;
-                let mut subradius = DEFAULT_RADIUS;
+                let mut subradius = default_radius;
                 let mut pos = Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0 };
                 while let Some(arg) = args.next() {
                     match arg {
@@ -837,7 +922,7 @@ impl UserTerminal {
                 args.next();
                 let mut num = 10;
                 let mut radius = 100.0;
-                let mut subradius = DEFAULT_RADIUS;
+                let mut subradius = default_radius;
                 while let Some(arg) = args.next() {
                     match arg {
                         "-circlenum" => {num = args.next().unwrap().parse().unwrap();}
@@ -1002,12 +1087,14 @@ fn main() {
         }
         if let Some(button) = event.release_args() {
             if button == Button::Mouse(MouseButton::Left) {
-                terminal.eval_cursor_release(&circles, &mut links, &mut staticlinks);
+                terminal.eval_cursor_release(&circles, &mut links);
                 for circle in &mut circles {
                     circle.is_dragged = false;
                 }
             }
         }
+
+        let speed_factor = MANAGER.lock().unwrap().speed_factor;
 
         window.draw_2d(&event, |context, graphics, device| {
             clear([1.0; 4], graphics);
@@ -1016,7 +1103,7 @@ fn main() {
 
             let mut i: i64 = 0;
             for circle in &mut circles {
-                circle.update(1.0 / 60.0 * SPEED_FACTOR, mouse_position);
+                circle.update(1.0 / 60.0 * speed_factor, mouse_position);
                 grid.add_obj(*circle, i);
                 ellipse(
                     circle.color,
@@ -1075,7 +1162,7 @@ fn main() {
                 context.transform,
                 graphics,
             );
-            draw_text(&context, graphics, &mut glyphs, [0.0, 0.0, 0.0, 1.0], Double { x: 0.0, y: 45.0 }, &terminal.input_text);
+            draw_text(&context, graphics, &mut glyphs, [0.0, 0.0, 0.0, 1.0], Double { x: 0.0, y: 45.0 }, format!("{}|", terminal.input_text).as_str());
 
             glyphs.factory.encoder.flush(device);
         });
