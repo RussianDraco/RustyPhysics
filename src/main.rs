@@ -480,21 +480,114 @@ struct UserTerminal {
     input_text: String,
     cursor_pos: Double,
 }
+/*
+User Terminal Commands:
+    help | Display types of help texts
+        help text | Display commands that run on terminal texts
+            help circle
+                circle -RADIUS -R -G -B -A -X -Y | Create a circle with (flags) radius RADIUS and color R G B A at position X Y
+        
+        help mouse | Display commands that change modes for the mouse
+            help circlemode
+                circlemode -RADIUS -R -G -B -A | Change mouse mode to make circles with (flags) radius RADIUS and color R G B A
+*/
 impl UserTerminal {
-    fn handle_events(&mut self, event: Event) {
-        match event {
-            Event::Input(Input::Text(text)) => {
-                self.input_text.push_str(&text);
+    fn execute_input(&mut self) {
+        let mut d = false;
+        match self.input_text.trim() {
+            "help" => {self.display_text = String::from("help text-Display text commands|help mouse-Display mouse commands");d=true;}
+
+
+            "help text" => {self.display_text = String::from("help +circle");d=true;}
+
+            "help circle" => {self.display_text = String::from("circle -RADIUS -R -G -B -A -X -Y");d=true;}
+            s if s.starts_with("circle") => {
+                let mut args = s.split_whitespace();
+                args.next();
+                let mut radius = DEFAULT_RADIUS;
+                let mut color = DEFAULT_COLOR;
+                let mut pos = Double { x: WIDTH as f64 / 2.0, y: HEIGHT as f64 / 2.0 };
+                while let Some(arg) = args.next() {
+                    match arg {
+                        "-RADIUS" => {radius = args.next().unwrap().parse().unwrap();}
+                        "-R" => {color[0] = args.next().unwrap().parse().unwrap();}
+                        "-G" => {color[1] = args.next().unwrap().parse().unwrap();}
+                        "-B" => {color[2] = args.next().unwrap().parse().unwrap();}
+                        "-A" => {color[3] = args.next().unwrap().parse().unwrap();}
+                        "-X" => {pos.x = args.next().unwrap().parse().unwrap();}
+                        "-Y" => {pos.y = args.next().unwrap().parse().unwrap();}
+                        _ => {}
+                    }
+                }
+                let mut circles: Vec<Circle> = Vec::new();
+                circles.push(Circle {
+                    radius,
+                    pinfo: PhysicsInfo {
+                        pos,
+                        vel: Double { x: 0.0, y: 0.0 },
+                        acc: Double { x: 0.0, y: 0.0 },
+                    },
+                    color,
+                    is_dragged: false,
+                });
             }
-            Event::Input(Input::Press(Button::Backspace)) => {
-                self.input_text.pop();
-            }
-            Event::Input(Input::Press(Button::Return)) => {
-                self.display_text = self.input_text.clone();
-                self.input_text.clear();
-            }
+
+            "help mouse" => {self.display_text = String::from("help +circlemode");d=true;}
+
+            "help circlemode" => {self.display_text = String::from("circlemode -RADIUS -R -G -B -A");d=true;}
+
             _ => {}
         }
+
+        self.input_text.clear();
+    }
+
+    fn handle_events(&mut self, event: &Event) {
+        if let Some(Button::Keyboard(key)) = event.press_args() {
+            match key {
+                Key::Return => {self.execute_input();}
+                Key::Backspace => {self.input_text.pop();}
+                Key::A => {self.input_text.push('a');}
+                Key::B => {self.input_text.push('b');}
+                Key::C => {self.input_text.push('c');}
+                Key::D => {self.input_text.push('d');}
+                Key::E => {self.input_text.push('e');}
+                Key::F => {self.input_text.push('f');}
+                Key::G => {self.input_text.push('g');}
+                Key::H => {self.input_text.push('h');}
+                Key::I => {self.input_text.push('i');}
+                Key::J => {self.input_text.push('j');}
+                Key::K => {self.input_text.push('k');}
+                Key::L => {self.input_text.push('l');}
+                Key::M => {self.input_text.push('m');}
+                Key::N => {self.input_text.push('n');}
+                Key::O => {self.input_text.push('o');}
+                Key::P => {self.input_text.push('p');}
+                Key::Q => {self.input_text.push('q');}
+                Key::R => {self.input_text.push('r');}
+                Key::S => {self.input_text.push('s');}
+                Key::T => {self.input_text.push('t');}
+                Key::U => {self.input_text.push('u');}
+                Key::V => {self.input_text.push('v');}
+                Key::W => {self.input_text.push('w');}
+                Key::X => {self.input_text.push('x');}
+                Key::Y => {self.input_text.push('y');}
+                Key::Z => {self.input_text.push('z');}
+                Key::D0 => {self.input_text.push('0');}
+                Key::D1 => {self.input_text.push('1');}
+                Key::D2 => {self.input_text.push('2');}
+                Key::D3 => {self.input_text.push('3');}
+                Key::D4 => {self.input_text.push('4');}
+                Key::D5 => {self.input_text.push('5');}
+                Key::D6 => {self.input_text.push('6');}
+                Key::D7 => {self.input_text.push('7');}
+                Key::D8 => {self.input_text.push('8');}
+                Key::D9 => {self.input_text.push('9');}
+                Key::Space => {self.input_text.push(' ');}
+                _ => {}
+            }
+        }
+        
     }
 }
 
@@ -512,7 +605,7 @@ fn main() {
     let mut glyphs = window.load_font(font).unwrap();
 
     let mut terminal = UserTerminal {
-        display_text: String::from("help 1 || help 2 || help 3"),
+        display_text: String::from("TYPE help TO START"),
         input_text: String::from(""),
         cursor_pos: Double { x: -1.0, y: -1.0 },
     };
@@ -546,7 +639,7 @@ fn main() {
     let mut mouse_position = Double { x: 0.0, y: 0.0 };
 
     while let Some(event) = window.next() {
-        terminal.handle_events(event);
+        terminal.handle_events(&event);
         if let Some(pos) = event.mouse_cursor_args() {
             mouse_position = Double { x: pos[0], y: pos[1] };
             terminal.cursor_pos = Double { x: pos[0], y: pos[1] };
