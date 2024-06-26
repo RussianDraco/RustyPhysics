@@ -10,9 +10,11 @@ This repository contains the source code for RustyPhysics, my education project 
 
 # Installation
 
+```
 git clone https://github.com/RussianDraco/RustyPhysics.git
 cd RustyPhysics
 cargo run
+```
 
 # Images
 ![Basic objects](assets/src1.png)
