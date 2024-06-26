@@ -545,8 +545,8 @@ User Terminal Commands:
                 springbodymode -circlenum -radius -subradius | Change mouse mode to make springbodies with (flags) num number of circles with radius radius and subradius subradius
             help ropemode
                 ropemode -ropelength -segmentnum | Change mouse mode to make ropes with (flags) length length and num number of segments
-            help linkmode
-                linkmode | Change mouse mode to make links between circles
+            help springmode
+                springmode | Change mouse mode to make springs between circles
 */
 impl UserTerminal {
     fn right_click(&mut self) {
@@ -554,9 +554,9 @@ impl UserTerminal {
         self.display_text = "Cursor Mode Cleared".to_string();
     }
 
-    fn eval_cursor_release(&mut self, circles: &Vec<Circle>, links: &mut Vec<Link>) {
+    fn eval_cursor_release(&mut self, circles: &Vec<Circle>, links: &mut Vec<Link>, staticlinks: &mut Vec<StaticLink>) {
         let default_link_length = MANAGER.lock().unwrap().default_link_length;
-        if self.cursor_mode.starts_with("link") {
+        if self.cursor_mode.starts_with("spring") {
             let mut args = self.cursor_mode.split(",");
             args.next();
             let n1: usize = args.next().unwrap().parse().unwrap();
@@ -575,8 +575,34 @@ impl UserTerminal {
                         c2: n2,
                         rest_length: default_link_length,
                     });
-                    println!("LINKMODE: Creating link between circle {} and circle {} with rest length: {}", n1, n2, default_link_length);
-                    self.display_text = format!("Made link with default rest length: circle {} and circle {}", n1, n2);
+                    println!("SPRINGMODE: Creating spring between circle {} and circle {} with rest length: {}", n1, n2, default_link_length);
+                    self.display_text = format!("Made spring with default rest length: circle {} and circle {}", n1, n2);
+                    break;
+                }
+                n2 += 1;
+            }
+        } else if self.cursor_mode.starts_with("link") {
+            let mut args = self.cursor_mode.split(",");
+            args.next();
+            let n1: usize = args.next().unwrap().parse().unwrap();
+            let mut n2: usize = 0;
+            for circle in circles {
+                let dx = self.cursor_pos.x - circle.pinfo.pos.x;
+                let dy = self.cursor_pos.y - circle.pinfo.pos.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                if distance <= circle.radius {
+                    if n1 == n2 {
+                        continue;
+                    }
+
+                    let d = circles[n1].pinfo.pos.dist(circles[n2].pinfo.pos);
+                    staticlinks.push(StaticLink {
+                        c1: n1,
+                        c2: n2,
+                        rest_length: d,
+                    });
+                    println!("LINKMODE: Creating link between circle {} and circle {} with rest length: {}", n1, n2, d);
+                    self.display_text = format!("Made link with rest length {}: circle {} and circle {}", d, n1, n2);
                     break;
                 }
                 n2 += 1;
@@ -628,6 +654,18 @@ impl UserTerminal {
             create_rope(circles, staticlinks, Double { x: self.cursor_pos.x, y: self.cursor_pos.y }, rope_length, segment_num);
             println!("ROPEMODE: Creating rope with length: {}, segmentnum: {}", rope_length, segment_num);
             self.display_text = format!("Made rope: ropelength: {}, segmentnum: {}, x: {}, y: {}", rope_length, segment_num, self.cursor_pos.x, self.cursor_pos.y);
+        } else if self.cursor_mode.starts_with("spring") {
+            let mut n: usize = 0;
+            for circle in circles {
+                let dx = self.cursor_pos.x - circle.pinfo.pos.x;
+                let dy = self.cursor_pos.y - circle.pinfo.pos.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                if distance <= circle.radius {
+                    self.cursor_mode = format!("spring,{}", n);
+                    break;
+                }
+                n += 1;
+            }
         } else if self.cursor_mode.starts_with("link") {
             let mut n: usize = 0;
             for circle in circles {
@@ -716,6 +754,21 @@ impl UserTerminal {
                     graphics,
                 );
             }
+        } else if self.cursor_mode.starts_with("spring") {
+            if self.cursor_mode == "spring" {
+                return;
+            }
+
+            let mut args = self.cursor_mode.split(",");
+            args.next();
+            let n: usize = args.next().unwrap().parse().unwrap();
+            line (
+                [0.0, 0.0, 0.0, 0.5],
+                1.0,
+                [self.cursor_pos.x, self.cursor_pos.y, circles[n].pinfo.pos.x, circles[n].pinfo.pos.y],
+                context.transform,
+                graphics,
+            );
         } else if self.cursor_mode.starts_with("link") {
             if self.cursor_mode == "link" {
                 return;
@@ -872,7 +925,7 @@ impl UserTerminal {
                 }
             }
 
-            "help mouse" => {self.display_text = String::from("help +circlemode/softbodymode/springbodymode/ropemode/linkmode");}
+            "help mouse" => {self.display_text = String::from("help +circlemode/softbodymode/springbodymode/ropemode/linkmode/springmode");}
 
             "help circlemode" => {self.display_text = String::from("circlemode -radius -r -g -b -a");}
             s if s.starts_with("circlemode") => {
@@ -951,6 +1004,12 @@ impl UserTerminal {
                 println!("Changing cursor mode to rope with length: {}, segmentnum: {}", rope_length, segment_num);
                 self.display_text = format!("Rope mode: ropelength: {}, segmentnum: {}", rope_length, segment_num);
                 self.cursor_mode = format!("rope,{},{}", rope_length, segment_num);
+            }
+            "help springmode" => {self.display_text = String::from("springmode");}
+            "springmode" => {
+                println!("Spring Mode Enabled");
+                self.display_text = String::from("Spring mode enabled");
+                self.cursor_mode = String::from("spring");
             }
             "help linkmode" => {self.display_text = String::from("linkmode");}
             "linkmode" => {
@@ -1069,7 +1128,7 @@ fn main() {
             if button == Button::Mouse(MouseButton::Left) {
                 terminal.eval_cursor_click(&mut circles, &mut links, &mut staticlinks);
 
-                if !terminal.cursor_mode.starts_with("link") {
+                if !terminal.cursor_mode.starts_with("spring") && !terminal.cursor_mode.starts_with("link"){
                     for circle in &mut circles {
                         let dx = mouse_position.x - circle.pinfo.pos.x;
                         let dy = mouse_position.y - circle.pinfo.pos.y;
@@ -1087,7 +1146,7 @@ fn main() {
         }
         if let Some(button) = event.release_args() {
             if button == Button::Mouse(MouseButton::Left) {
-                terminal.eval_cursor_release(&circles, &mut links);
+                terminal.eval_cursor_release(&circles, &mut links, &mut staticlinks);
                 for circle in &mut circles {
                     circle.is_dragged = false;
                 }
