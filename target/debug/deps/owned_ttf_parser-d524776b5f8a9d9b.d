@@ -1,0 +1,10 @@
+C:\Users\mathn\Desktop\Programming\Other\RustyPhysics\target\debug\deps\libowned_ttf_parser-d524776b5f8a9d9b.rmeta: C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\lib.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\convert.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\owned.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\preparse.rs
+
+C:\Users\mathn\Desktop\Programming\Other\RustyPhysics\target\debug\deps\libowned_ttf_parser-d524776b5f8a9d9b.rlib: C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\lib.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\convert.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\owned.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\preparse.rs
+
+C:\Users\mathn\Desktop\Programming\Other\RustyPhysics\target\debug\deps\owned_ttf_parser-d524776b5f8a9d9b.d: C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\lib.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\convert.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\owned.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\preparse.rs
+
+C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\lib.rs:
+C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\convert.rs:
+C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\owned.rs:
+C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\owned_ttf_parser-0.15.2\src\preparse.rs:

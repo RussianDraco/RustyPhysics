@@ -11,6 +11,12 @@ This repository contains the source code for RustyPhysics, my education project 
 # Installation
 
 ```
+Download /target and run /target/debug/RustyPhysics.exe
+```
+
+OR
+
+```
 git clone https://github.com/RussianDraco/RustyPhysics.git
 cd RustyPhysics
 cargo run

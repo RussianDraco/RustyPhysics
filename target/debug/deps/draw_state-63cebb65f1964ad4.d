@@ -1,0 +1,10 @@
+C:\Users\mathn\Desktop\Programming\Other\RustyPhysics\target\debug\deps\libdraw_state-63cebb65f1964ad4.rmeta: C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src/lib.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\preset.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\state.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\target.rs
+
+C:\Users\mathn\Desktop\Programming\Other\RustyPhysics\target\debug\deps\libdraw_state-63cebb65f1964ad4.rlib: C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src/lib.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\preset.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\state.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\target.rs
+
+C:\Users\mathn\Desktop\Programming\Other\RustyPhysics\target\debug\deps\draw_state-63cebb65f1964ad4.d: C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src/lib.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\preset.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\state.rs C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\target.rs
+
+C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src/lib.rs:
+C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\preset.rs:
+C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\state.rs:
+C:\Users\Ivan\ Sivakov\.cargo\registry\src\index.crates.io-6f17d22bba15001f\draw_state-0.8.0\src\target.rs:
